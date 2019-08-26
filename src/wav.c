@@ -26,7 +26,7 @@
 #include <gsm.h>
 #endif
 
-#else
+#elif defined HAVE_GSM
 #include "../libgsm/gsm.h"
 #endif
 
@@ -91,10 +91,12 @@ typedef struct {
     int            state[16];       /* step-size info for *ADPCM writes */
 
     /* following used by GSM 6.10 wav */
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
     gsm            gsmhandle;
     gsm_signal     *gsmsample;
     int            gsmindex;
     size_t      gsmbytecount;    /* counts bytes written to data block */
+#endif
     sox_bool       isRF64;          /* True if file being read is a RF64 */
     uint64_t       ds64_dataSize;   /* Size of data chunk from ds64 header */
 } priv_t;
@@ -227,6 +229,7 @@ static int xxxAdpcmWriteBlock(sox_format_t * ft)
 /* WAV GSM6.10 support functions                                            */
 /****************************************************************************/
 /* create the gsm object, malloc buffer for 160*2 samples */
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
 static int wavgsminit(sox_format_t * ft)
 {
     int valueP=1;
@@ -369,6 +372,7 @@ static void wavgsmstopwrite(sox_format_t * ft)
 
     wavgsmdestroy(ft);
 }
+#endif
 
 /****************************************************************************/
 /* General Sox WAV file code                                                */
@@ -680,12 +684,14 @@ static int startread(sox_format_t * ft)
         return wavfail(ft, "Digifix");
     case WAVE_FORMAT_DOLBY_AC2:
         return wavfail(ft, "Dolby AC2");
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
     case WAVE_FORMAT_GSM610:
         if (ft->encoding.encoding == SOX_ENCODING_UNKNOWN || ft->encoding.encoding == SOX_ENCODING_GSM )
             ft->encoding.encoding = SOX_ENCODING_GSM;
         else
             lsx_report("User options overriding encoding read in .wav header");
         break;
+#endif
     case WAVE_FORMAT_ROCKWELL_ADPCM:
         return wavfail(ft, "Rockwell ADPCM");
     case WAVE_FORMAT_ROCKWELL_DIGITALK:
@@ -839,6 +845,7 @@ static int startread(sox_format_t * ft)
         break;
 
     /* GSM formats have extended fmt chunk.  Check for those cases. */
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
     case WAVE_FORMAT_GSM610:
         if (wExtSize < 2)
         {
@@ -863,6 +870,7 @@ static int startread(sox_format_t * ft)
         bytespersample = 2;  /* AFTER de-compression */
         len -= 2;
         break;
+#endif
 
     default:
       bytespersample = (wBitsPerSample + 7)/8;
@@ -947,11 +955,13 @@ static int startread(sox_format_t * ft)
         ft->signal.length = wav->numSamples*ft->signal.channels;
         break;
 
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
     case WAVE_FORMAT_GSM610:
         wav->numSamples = ((qwDataLength / wav->blockAlign) * wav->samplesPerBlock);
         wavgsminit(ft);
         ft->signal.length = wav->numSamples*ft->signal.channels;
         break;
+#endif
 
     default:
         wav->numSamples = div_bits(qwDataLength, ft->encoding.bits_per_sample) / ft->signal.channels;
@@ -987,11 +997,13 @@ static int startread(sox_format_t * ft)
                       (unsigned long)wav->numSamples);
             break;
 
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
         case WAVE_FORMAT_GSM610:
             lsx_debug("GSM .wav: %d Extsize, %d Samps/block, %lu Samples/chan",
                       wExtSize, wav->samplesPerBlock, 
                       (unsigned long)wav->numSamples);
             break;
+#endif
 
         default:
             lsx_debug("        %lu Samps/chans", 
@@ -1174,6 +1186,7 @@ static size_t read_samples(sox_format_t * ft, sox_sample_t *buf, size_t len)
             return done;
             break;
 
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
         case SOX_ENCODING_GSM:
             if (!wav->ignoreSize && len > wav->numSamples*ft->signal.channels)
                 len = (wav->numSamples*ft->signal.channels);
@@ -1182,6 +1195,7 @@ static size_t read_samples(sox_format_t * ft, sox_sample_t *buf, size_t len)
             if (done == 0 && wav->numSamples != 0 && !wav->ignoreSize)
                 lsx_warn("Premature EOF on .wav input file");
         break;
+#endif
 
         default: /* assume PCM or float encoding */
             if (!wav->ignoreSize && len > wav->numSamples*ft->signal.channels)
@@ -1224,9 +1238,11 @@ static int stopread(sox_format_t * ft)
 
     switch (ft->encoding.encoding)
     {
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
     case SOX_ENCODING_GSM:
         wavgsmdestroy(ft);
         break;
+#endif
     case SOX_ENCODING_IMA_ADPCM:
     case SOX_ENCODING_MS_ADPCM:
         break;
@@ -1282,8 +1298,10 @@ static int startwrite(sox_format_t * ft)
             wav->samplePtr = wav->samples;
             break;
 
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
         case WAVE_FORMAT_GSM610:
             return wavgsminit(ft);
+#endif
 
         default:
             break;
@@ -1439,6 +1457,7 @@ static int wavwritehdr(sox_format_t * ft, int second_header)
             wExtSize = 4+4*7;      /* Ext fmt data length */
             wSamplesPerBlock = lsx_ms_adpcm_samples_in((size_t) 0, (size_t) wChannels, (size_t) wBlockAlign, (size_t) 0);
             break;
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
         case SOX_ENCODING_GSM:
             if (wChannels!=1)
             {
@@ -1454,6 +1473,7 @@ static int wavwritehdr(sox_format_t * ft, int second_header)
             wExtSize=2;        /* length of format extension */
             wSamplesPerBlock = 320;
             break;
+#endif
         default:
                 break;
     }
@@ -1569,9 +1589,11 @@ static int wavwritehdr(sox_format_t * ft, int second_header)
             lsx_writew(ft, (uint16_t)(lsx_ms_adpcm_i_coef[i][1]));
         }
         break;
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
         case WAVE_FORMAT_GSM610:
         lsx_writew(ft, wSamplesPerBlock);
         break;
+#endif
         default:
         break;
     }
@@ -1595,6 +1617,7 @@ static int wavwritehdr(sox_format_t * ft, int second_header)
     } else {
         lsx_debug("Finished writing Wave file, %u data bytes %lu samples",
                 dwDataLength, (unsigned long)wav->numSamples);
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
         if (wFormatTag == WAVE_FORMAT_GSM610){
             lsx_debug("GSM6.10 format: %li blocks %u padded samples %u padded data bytes",
                     blocksWritten, dwSamplesWritten, dwDataLength);
@@ -1603,6 +1626,7 @@ static int wavwritehdr(sox_format_t * ft, int second_header)
                         dwDataLength, (unsigned long)wav->gsmbytecount);
 
         }
+#endif
     }
     return SOX_SUCCESS;
 }
@@ -1635,11 +1659,13 @@ static size_t write_samples(sox_format_t * ft, const sox_sample_t *buf, size_t l
             return total_len - len;
             break;
 
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
         case WAVE_FORMAT_GSM610:
             len = wavgsmwrite(ft, buf, len);
             wav->numSamples += (len/ft->signal.channels);
             return len;
             break;
+#endif
 
         default:
             len = lsx_rawwrite(ft, buf, len);
@@ -1662,9 +1688,11 @@ static int stopwrite(sox_format_t * ft)
         case WAVE_FORMAT_ADPCM:
             xxxAdpcmWriteBlock(ft);
             break;
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
         case WAVE_FORMAT_GSM610:
             wavgsmstopwrite(ft);
             break;
+#endif
         }
 
         /* Add a pad byte if the number of data bytes is odd.
@@ -1723,8 +1751,10 @@ static char *wav_format_str(unsigned wFormatTag)
                         return "Digifix format.";
                 case WAVE_FORMAT_DOLBY_AC2:
                         return "Dolby AC2";
+#if defined(HAVE_GSM) || defined(EXTERNAL_GSM)
                 case WAVE_FORMAT_GSM610:
                         return "GSM 6.10";
+#endif
                 case WAVE_FORMAT_ROCKWELL_ADPCM:
                         return "Rockwell ADPCM";
                 case WAVE_FORMAT_ROCKWELL_DIGITALK:
