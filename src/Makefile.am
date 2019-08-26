@@ -119,7 +119,7 @@ endif
 libsox_la_SOURCES += raw-fmt.c s1-fmt.c s2-fmt.c s3-fmt.c \
   s4-fmt.c u1-fmt.c u2-fmt.c u3-fmt.c u4-fmt.c al-fmt.c la-fmt.c ul-fmt.c \
   lu-fmt.c 8svx.c aiff-fmt.c aifc-fmt.c au.c avr.c cdr.c cvsd-fmt.c \
-  dvms-fmt.c dat.c hcom.c htk.c maud.c prc.c sf.c smp.c \
+  dvms-fmt.c dat.c hcom.c htk.c maud.c msupcm-fmt.c prc.c sf.c smp.c \
   sounder.c soundtool.c sphere.c tx16w.c voc.c vox-fmt.c ima-fmt.c adpcm.c adpcm.h \
   ima_rw.c ima_rw.h wav.c wve.c xa.c nulfile.c f4-fmt.c f8-fmt.c gsrt.c
 
